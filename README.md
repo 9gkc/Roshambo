@@ -1,5 +1,7 @@
 # 🪨📄✂️ Rock Paper Scissors Game
 
+> **Live demo:** [Open Roshambo in your browser](https://9gkc.github.io/Roshambo/)
+
 <div align="center">
   <img src="https://img.shields.io/github/last-commit/9gkc/Roshambo?style=for-the-badge&label=Last%20Update&color=58A6FF" alt="Last Update">
   <img src="https://img.shields.io/github/stars/9gkc/Roshambo?style=for-the-badge&color=58A6FF" alt="GitHub Stars">
