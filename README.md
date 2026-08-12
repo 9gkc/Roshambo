@@ -19,10 +19,12 @@ This project is a classic Rock Paper Scissors game implemented using HTML, CSS, 
 ## 🚀 Features
 
 -   **Interactive Gameplay**: Play Rock Paper Scissors against an AI opponent.
--   **Dynamic UI**: Visual feedback for player and computer choices, with a shuffling animation for the computer's selection.
+-   **Dynamic UI**: Visual feedback for player and computer choices, with a bounded shuffling animation for the computer's selection.
 -   **Match History**: Records the last 10 matches, showing player choice, computer choice, and result.
 -   **Score Tracking**: Displays win, loss, and draw counts.
--   **Persistence**: Game history and scores are saved in the browser's `localStorage`.
+-   **Persistence**: Valid match history is saved safely in the browser's `localStorage`.
+-   **Safe Rendering**: Match values are rendered through DOM APIs instead of HTML interpolation.
+-   **Accessible Controls**: Keyboard-friendly choice buttons and live round status.
 -   **Reset Functionality**: Option to clear all game history and scores.
 -   **Responsive Design**: Optimized for various screen sizes.
 
@@ -38,11 +40,11 @@ Follow these steps to set up and play the game on your local machine:
 
 1.  **Clone the repository**:
     ```bash
-    git clone https://github.com/YOUR_USERNAME/rock-paper-scissors-game.git
+    git clone https://github.com/9gkc/Roshambo.git
     ```
 2.  **Navigate to the project directory**:
     ```bash
-    cd rock-paper-scissors-game
+    cd Roshambo
     ```
 3.  **Open `index.html` in your browser**:
     Simply open the `index.html` file directly from your file system using your preferred web browser. For a better development experience, you can use a live server extension (e.g., Live Server for VS Code).

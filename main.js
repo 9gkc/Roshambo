@@ -1,6 +1,10 @@
-let resultDiv = document.getElementById("result");
-let playerChoice = document.getElementById("player-choice");
-let computerChoice = document.getElementById("computer-choice");
+const playerChoiceImage = document.querySelector("#player-choice");
+const computerChoiceImage = document.querySelector("#computer-choice");
+const resultElement = document.querySelector("#result");
+const gameStatus = document.querySelector("#game-status");
+const historyContainer = document.querySelector("#match-history");
+const resetContainer = document.querySelector("#reset-container");
+const choiceButtons = document.querySelectorAll("[data-choice]");
 
 const choices = ["rock", "paper", "scissors"];
 const images = {
@@ -8,145 +12,214 @@ const images = {
   paper: "images/paper.png",
   scissors: "images/scissors.png",
 };
+const defaultImages = {
+  player: "images/choose.png",
+  computer: "images/random.png",
+};
+const storageKey = "roshambo.matches.v1";
+const maxHistory = 10;
+let shuffleTimer = null;
+let finishTimer = null;
+let resetTimer = null;
+let roundInProgress = false;
 
-function playGame(playerSelection) {
-  // Update Player Image
-  playerChoice.src = images[playerSelection];
+function setStatus(message, tone = "info") {
+  if (!gameStatus) return;
+  gameStatus.textContent = message;
+  gameStatus.dataset.tone = tone;
+}
 
-  // Disable Buttons
-  toggleButtons(false);
+function randomIndex(length) {
+  const cryptoSource = globalThis.crypto;
+  if (!cryptoSource?.getRandomValues) return Math.floor(Math.random() * length);
+  const values = new Uint32Array(1);
+  const limit = Math.floor(0x1_0000_0000 / length) * length;
+  do {
+    cryptoSource.getRandomValues(values);
+  } while (values[0] >= limit);
+  return values[0] % length;
+}
 
-  // Shuffle Computer Choice
-  let shuffleInterval = setInterval(() => {
-    let randomChoice = choices[Math.floor(Math.random() * choices.length)];
-    // console.log(randomChoice);
-    computerChoice.src = images[randomChoice];
-    // console.log(randomChoice);
-  }, 50);
+function readMatches() {
+  try {
+    const saved = localStorage.getItem(storageKey) ?? localStorage.getItem("matches") ?? "[]";
+    const parsed = JSON.parse(saved);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter((match) => (
+      match &&
+      choices.includes(match.player) &&
+      choices.includes(match.computer) &&
+      ["Win", "Lose", "Draw"].includes(match.result)
+    )).slice(-maxHistory);
+  } catch (error) {
+    console.error("Unable to read match history", error);
+    setStatus("Match history could not be read from this browser.", "error");
+    return [];
+  }
+}
 
-  setTimeout(() => {
-    // Stop Shuffling
-    clearInterval(shuffleInterval);
-
-    // Get Random Image
-    let computerSelection = choices[Math.floor(Math.random() * choices.length)];
-    computerChoice.src = images[computerSelection];
-
-    let result = getResult(playerSelection, computerSelection);
-    resultDiv.innerHTML = result;
-
-    saveResult(playerSelection, computerSelection, result);
-    displayHistoryMatches();
-  }, 2000);
-
-  setTimeout(() => {
-    playerChoice.src = "images/choose.png";
-    computerChoice.src = "images/random.png";
-    resultDiv.innerHTML = "";
-    // Re-Enable Buttons
-    toggleButtons(true);
-  }, 4000);
+function saveMatches(matches) {
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(matches.slice(-maxHistory)));
+    return true;
+  } catch (error) {
+    console.error("Unable to save match history", error);
+    setStatus("The result was calculated, but history could not be saved.", "error");
+    return false;
+  }
 }
 
 function getResult(player, computer) {
-  if (player === computer) return `Draw`;
-  if (
+  if (player === computer) return "Draw";
+  const playerWins = (
     (player === "rock" && computer === "scissors") ||
     (player === "paper" && computer === "rock") ||
     (player === "scissors" && computer === "paper")
-  ) {
-    return `Win`;
-  } else {
-    return `Lose`;
-  }
+  );
+  return playerWins ? "Win" : "Lose";
 }
 
-function saveResult(player, computer, result) {
-  let matchHistory = JSON.parse(localStorage.getItem("matches")) || [];
+function toggleButtons(enabled) {
+  choiceButtons.forEach((button) => {
+    button.disabled = !enabled;
+    button.setAttribute("aria-disabled", String(!enabled));
+  });
+}
 
-  // Add Match
-  matchHistory.push({ player, computer, result });
+function clearRoundTimers() {
+  if (shuffleTimer) window.clearInterval(shuffleTimer);
+  if (finishTimer) window.clearTimeout(finishTimer);
+  if (resetTimer) window.clearTimeout(resetTimer);
+  shuffleTimer = null;
+  finishTimer = null;
+  resetTimer = null;
+}
 
-  if (matchHistory.length > 10) {
-    matchHistory.shift(); // Remove The Oldest Match
-  }
+function updateChoiceImage(image, choice, isPlayer) {
+  if (!image) return;
+  image.src = images[choice];
+  image.alt = `${isPlayer ? "Your" : "Computer's"} choice: ${choice}`;
+}
 
-  // Save To Local Storage
-  localStorage.setItem("matches", JSON.stringify(matchHistory));
+function resetRound() {
+  playerChoiceImage?.setAttribute("src", defaultImages.player);
+  playerChoiceImage?.setAttribute("alt", "Your choice");
+  computerChoiceImage?.setAttribute("src", defaultImages.computer);
+  computerChoiceImage?.setAttribute("alt", "Computer choice");
+  if (resultElement) resultElement.textContent = "Choose rock, paper, or scissors.";
+  roundInProgress = false;
+  toggleButtons(true);
+}
+
+function appendCell(row, text, header = false) {
+  const cell = document.createElement(header ? "th" : "td");
+  cell.textContent = text;
+  row.appendChild(cell);
 }
 
 function displayHistoryMatches() {
-  let matchHistory = JSON.parse(localStorage.getItem("matches")) || [];
-  // console.log(matchHistory);
-  let historyContainer = document.getElementById("match-history");
-  let resetContainer = document.getElementById("reset-container");
+  if (!historyContainer || !resetContainer) return;
+  const matches = readMatches();
+  historyContainer.replaceChildren();
+  resetContainer.replaceChildren();
 
-  if (matchHistory.length === 0) return;
+  if (matches.length === 0) {
+    const empty = document.createElement("p");
+    empty.className = "empty-history";
+    empty.textContent = "No matches played yet.";
+    historyContainer.appendChild(empty);
+    return;
+  }
 
-  // Count Win and Lose and Draw
-  let winCount = matchHistory.filter((match) => match.result === "Win").length;
-  let loseCount = matchHistory.filter((match) => match.result === "Lose").length;
-  let drawCount = matchHistory.filter((match) => match.result === "Draw").length;
-
-  // console.log(winCount);
-  // console.log(loseCount);
-  // console.log(drawCount);
-
-  let tableHTML = `
-  <table>
-    <caption>Match History</caption>
-    <thead>
-      <tr>
-        <th>#</th>
-        <th>Your Choice</th>
-        <th>Computer's Choice</th>
-        <th>Result</th>
-      </tr>
-    </thead>
-    <tbody>
-  `;
-  matchHistory.forEach((match, index) => {
-    tableHTML += `
-      <tr>
-        <td>${index + 1}</td>
-        <td>${match.player}</td>
-        <td>${match.computer}</td>
-        <td>${match.result}</td>
-      </tr>
-    `;
+  const wins = matches.filter((match) => match.result === "Win").length;
+  const losses = matches.filter((match) => match.result === "Lose").length;
+  const draws = matches.filter((match) => match.result === "Draw").length;
+  const table = document.createElement("table");
+  const caption = document.createElement("caption");
+  caption.textContent = "Match history";
+  table.appendChild(caption);
+  const head = document.createElement("thead");
+  const headRow = document.createElement("tr");
+  ["#", "Your choice", "Computer's choice", "Result"].forEach((label) => appendCell(headRow, label, true));
+  head.appendChild(headRow);
+  table.appendChild(head);
+  const body = document.createElement("tbody");
+  matches.forEach((match, index) => {
+    const row = document.createElement("tr");
+    appendCell(row, String(index + 1));
+    appendCell(row, match.player);
+    appendCell(row, match.computer);
+    appendCell(row, match.result);
+    body.appendChild(row);
   });
-  tableHTML += `
-    </tbody>
-  </table>
-  `;
+  table.appendChild(body);
+  historyContainer.appendChild(table);
 
-  historyContainer.innerHTML = tableHTML;
-  historyContainer.innerHTML += `
-    <div class="stats">
-      <div>Wins <span>${winCount}</span></div>
-      <div>Lose <span>${loseCount}</span></div>
-      <div>Draw <span>${drawCount}</span></div>
-    </div>
-  `;
-
-  resetContainer.innerHTML = `<button id="reset-btn" class="reset-btn">Reset Score</button>`;
-
-  // Reset Button
-  document.getElementById("reset-btn").addEventListener("click", function () {
-    localStorage.removeItem("matches");
-    // historyContainer.innerHTML = "";
-    location.reload();
+  const stats = document.createElement("div");
+  stats.className = "stats";
+  [["Wins", wins], ["Losses", losses], ["Draws", draws]].forEach(([label, count]) => {
+    const stat = document.createElement("div");
+    const labelElement = document.createElement("span");
+    labelElement.textContent = label;
+    const countElement = document.createElement("strong");
+    countElement.textContent = String(count);
+    stat.append(labelElement, countElement);
+    stats.appendChild(stat);
   });
+  historyContainer.appendChild(stats);
+
+  const resetButton = document.createElement("button");
+  resetButton.type = "button";
+  resetButton.className = "reset-btn";
+  resetButton.textContent = "Reset score";
+  resetButton.addEventListener("click", () => {
+    try {
+      localStorage.removeItem(storageKey);
+      localStorage.removeItem("matches");
+      displayHistoryMatches();
+      setStatus("Match history reset.", "success");
+    } catch (error) {
+      setStatus("Match history could not be reset.", "error");
+      console.error("Unable to reset match history", error);
+    }
+  });
+  resetContainer.appendChild(resetButton);
 }
 
-function toggleButtons(state) {
-  document.querySelectorAll(".buttons button").forEach((button) => {
-    button.disabled = !state;
-    button.style.opacity = state ? "1" : "0.7";
-  });
-}
-
-// Load Matches History
-document.addEventListener("DOMContentLoaded", () => {
+function finishRound(playerSelection) {
+  shuffleTimer = null;
+  const computerSelection = choices[randomIndex(choices.length)];
+  updateChoiceImage(computerChoiceImage, computerSelection, false);
+  const result = getResult(playerSelection, computerSelection);
+  if (resultElement) resultElement.textContent = result;
+  const matches = readMatches();
+  matches.push({ player: playerSelection, computer: computerSelection, result });
+  saveMatches(matches);
   displayHistoryMatches();
+  setStatus(`${result}. Choose again when ready.`, result === "Win" ? "success" : "info");
+  finishTimer = window.setTimeout(() => {
+    resetRound();
+    finishTimer = null;
+  }, 2_500);
+}
+
+function playGame(playerSelection) {
+  if (!choices.includes(playerSelection) || roundInProgress) return;
+  clearRoundTimers();
+  roundInProgress = true;
+  toggleButtons(false);
+  updateChoiceImage(playerChoiceImage, playerSelection, true);
+  if (resultElement) resultElement.textContent = "Computer is choosing…";
+  setStatus("Round in progress…");
+  shuffleTimer = window.setInterval(() => {
+    updateChoiceImage(computerChoiceImage, choices[randomIndex(choices.length)], false);
+  }, 75);
+  finishTimer = window.setTimeout(() => finishRound(playerSelection), 1_200);
+}
+
+choiceButtons.forEach((button) => {
+  button.addEventListener("click", () => playGame(button.dataset.choice));
 });
+
+window.addEventListener("beforeunload", clearRoundTimers);
+displayHistoryMatches();
