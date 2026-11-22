@@ -106,7 +106,7 @@ function resetRound() {
   playerChoiceImage?.setAttribute("alt", "Your choice");
   computerChoiceImage?.setAttribute("src", defaultImages.computer);
   computerChoiceImage?.setAttribute("alt", "Computer choice");
-  if (resultElement) resultElement.textContent = "Choose rock, paper, or scissors.";
+  if (resultElement) resultElement.textContent = "Choose rock, paper, or scissors. Keyboard: R / P / S";
   roundInProgress = false;
   toggleButtons(true);
 }
@@ -221,5 +221,16 @@ choiceButtons.forEach((button) => {
   button.addEventListener("click", () => playGame(button.dataset.choice));
 });
 
+document.addEventListener("keydown", (event) => {
+  if (roundInProgress) return;
+  const target = event.target;
+  if (target instanceof HTMLElement && ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)) return;
+  const key = event.key.toLowerCase();
+  if (key === "r") playGame("rock");
+  if (key === "p") playGame("paper");
+  if (key === "s") playGame("scissors");
+});
+
 window.addEventListener("beforeunload", clearRoundTimers);
 displayHistoryMatches();
+if (resultElement) resultElement.textContent = "Choose rock, paper, or scissors. Keyboard: R / P / S";
